@@ -1,148 +1,458 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ur">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Air Defence | Explore .com</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        canvas {
-            background: #0c0c24;
-            display: block;
-            margin: 20px auto;
-            border-radius: 20px;
-            box-shadow: 0 0 30px var(--accent);
-            max-width: 100%;
-        }
-        .score {
-            text-align: center;
-            font-size: 24px;
-            margin-top: 10px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F-16 Missile Hit Simulation</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    #btnLaunch {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 15px 35px;
+      background: #ff3333;
+      color: white;
+      border: none;
+      border-radius: 50px;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(255,0,0,0.7);
+      z-index: 10;
+    }
+    #btnLaunch:active {
+      transform: translateX(-50%) scale(0.95);
+    }
+  </style>
 </head>
 <body>
-    <header>
-        <nav>
-            <a href="index.html" class="home-btn">🏠 Home</a>
-            <button id="settingsBtn" class="settings-btn">⚙️ Settings</button>
-        </nav>
-        <div class="branding">
-            <h1>Explore .com</h1>
-            <p class="tagline">Air Defence</p>
-        </div>
-    </header>
+<button id="btnLaunch">🚀 MISSILE LAUNCH</button>
+<canvas id="canvas"></canvas>
 
-    <canvas id="canvas" width="700" height="500"></canvas>
-    <div class="score">Score: <span id="scoreValue">0</span></div>
+<script>
+  // ==================== F-16 Missile Hit Simulation ====================
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H;
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Settings</h2>
-            <label for="bgColor">Background Color:</label>
-            <input type="color" id="bgColor" value="#1a1a2e">
-            <br><br>
-            <label for="accentColor">Accent Color:</label>
-            <input type="color" id="accentColor" value="#e94560">
-            <br><br>
-            <button id="saveSettings">Save</button>
-        </div>
-    </div>
+  // Simulation state
+  let jet, missile, explosionParticles, wreckageParts, smokeOnGround;
+  let gameState = 'flying'; // 'flying', 'missile', 'explosion', 'falling', 'crashed'
+  let resetTimer = 0;
+  let jetSpeed = 2.5;
+  let missileLaunched = false;
 
-    <script src="common.js"></script>
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        let score = 0;
-        const scoreSpan = document.getElementById('scoreValue');
+  // Button
+  const launchBtn = document.getElementById('btnLaunch');
+  launchBtn.addEventListener('click', () => {
+    if (gameState === 'flying' && !missileLaunched) {
+      launchMissile();
+    }
+  });
 
-        let enemies = [];
-        let bullets = [];
-        let gunX = W/2;
+  // Resize
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
 
-        function spawnEnemy() {
-            enemies.push({
-                x: Math.random() * (W-40) + 20,
-                y: -20,
-                speed: 1.5 + Math.random() * 2
-            });
+  // Initialize game objects
+  function initJet() {
+    jet = {
+      x: -100,
+      y: H * 0.25,
+      width: 80,
+      height: 30,
+      speed: jetSpeed,
+      angle: 0,
+      alive: true,
+    };
+  }
+
+  function initMissile() {
+    missile = null;
+    missileLaunched = false;
+  }
+
+  function launchMissile() {
+    missile = {
+      x: W * 0.8,
+      y: H - 60,
+      speed: 6,
+      homeFactor: 0.05,
+      alive: true,
+      trail: [],
+      trailTimer: 0,
+    };
+    missileLaunched = true;
+    gameState = 'missile';
+  }
+
+  // Explosion & wreckage arrays
+  function resetExplosion() {
+    explosionParticles = [];
+    wreckageParts = [];
+    smokeOnGround = [];
+  }
+
+  // Create explosion particles at (x,y)
+  function createExplosion(x, y) {
+    const count = 80;
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 8;
+      explosionParticles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2,
+        life: 1.0,
+        decay: 0.01 + Math.random() * 0.04,
+        size: 2 + Math.random() * 6,
+        color: `hsl(${20 + Math.random() * 40}, 100%, ${50 + Math.random() * 50}%)`,
+      });
+    }
+  }
+
+  // Break jet into wreckage
+  function breakJet() {
+    const cx = jet.x + jet.width / 2;
+    const cy = jet.y + jet.height / 2;
+    const partCount = 12;
+    for (let i = 0; i < partCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 5;
+      wreckageParts.push({
+        x: cx + (Math.random() - 0.5) * 60,
+        y: cy + (Math.random() - 0.5) * 20,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 3,
+        rotation: Math.random() * 0.3,
+        rotSpeed: (Math.random() - 0.5) * 0.2,
+        life: 1.0,
+        decay: 0.005 + Math.random() * 0.015,
+        size: 4 + Math.random() * 10,
+        color: '#555',
+        shape: Math.floor(Math.random() * 3), // 0: rect, 1: triangle, 2: ellipse
+        fire: Math.random() < 0.5,
+      });
+    }
+  }
+
+  // Draw ground
+  function drawGround() {
+    // Sky gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#1a3a6e');
+    grad.addColorStop(0.6, '#6ba3d6');
+    grad.addColorStop(1, '#8cb9e0');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Ground
+    ctx.fillStyle = '#3b6b2f';
+    ctx.fillRect(0, H - 50, W, 50);
+    ctx.fillStyle = '#4c8b3a';
+    ctx.fillRect(0, H - 50, W, 8); // grass top
+    // some bushes
+    ctx.fillStyle = '#2d5a1e';
+    for (let i = 0; i < 10; i++) {
+      ctx.beginPath();
+      ctx.arc((i * 150 + Math.random() * 100), H - 45, 15 + Math.random() * 15, 0, Math.PI);
+      ctx.fill();
+    }
+  }
+
+  // Draw jet
+  function drawJet(x, y, angle = 0) {
+    ctx.save();
+    ctx.translate(x + jet.width / 2, y + jet.height / 2);
+    ctx.rotate(angle);
+    // Body
+    ctx.fillStyle = '#8899aa';
+    ctx.beginPath();
+    ctx.moveTo(-40, 0);
+    ctx.lineTo(-10, -8);
+    ctx.lineTo(30, -5);
+    ctx.lineTo(40, 0);
+    ctx.lineTo(30, 5);
+    ctx.lineTo(-10, 8);
+    ctx.closePath();
+    ctx.fill();
+    // Cockpit
+    ctx.fillStyle = '#55ccff';
+    ctx.beginPath();
+    ctx.ellipse(15, 0, 8, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Wings
+    ctx.fillStyle = '#667788';
+    ctx.beginPath();
+    ctx.moveTo(-5, -8);
+    ctx.lineTo(-15, -20);
+    ctx.lineTo(10, -10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-5, 8);
+    ctx.lineTo(-15, 20);
+    ctx.lineTo(10, 10);
+    ctx.closePath();
+    ctx.fill();
+    // Tail
+    ctx.fillStyle = '#555566';
+    ctx.beginPath();
+    ctx.moveTo(-35, 0);
+    ctx.lineTo(-45, -15);
+    ctx.lineTo(-50, -10);
+    ctx.lineTo(-38, 0);
+    ctx.closePath();
+    ctx.fill();
+    // Engine exhaust
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(-42, 0, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Draw missile
+  function drawMissile(m) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    // angle based on velocity (if moving)
+    const angle = m.vx ? Math.atan2(m.vy, m.vx) : 0;
+    ctx.rotate(angle);
+    // body
+    ctx.fillStyle = '#ddd';
+    ctx.beginPath();
+    ctx.moveTo(15, 0);
+    ctx.lineTo(-15, -3);
+    ctx.lineTo(-18, 0);
+    ctx.lineTo(-15, 3);
+    ctx.closePath();
+    ctx.fill();
+    // fins
+    ctx.fillStyle = '#c00';
+    ctx.beginPath();
+    ctx.moveTo(-8, -3);
+    ctx.lineTo(-14, -8);
+    ctx.lineTo(-12, -3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-8, 3);
+    ctx.lineTo(-14, 8);
+    ctx.lineTo(-12, 3);
+    ctx.closePath();
+    ctx.fill();
+    // exhaust
+    ctx.fillStyle = '#ff6600';
+    ctx.beginPath();
+    ctx.arc(-18, 0, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Update loop
+  function update() {
+    if (gameState === 'flying') {
+      // Jet moves right
+      jet.x += jet.speed;
+      if (jet.x > W + 100) {
+        // Reset jet position
+        jet.x = -100;
+        jet.y = H * 0.25 + Math.random() * H * 0.15;
+      }
+    } 
+    else if (gameState === 'missile') {
+      // Jet continues flying
+      jet.x += jet.speed;
+      if (jet.x > W + 100) {
+        jet.x = -100;
+        jet.y = H * 0.25 + Math.random() * H * 0.15;
+      }
+      // Missile tracks jet
+      const targetX = jet.x + jet.width / 2;
+      const targetY = jet.y + jet.height / 2;
+      const dx = targetX - missile.x;
+      const dy = targetY - missile.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 15) {
+        // HIT!
+        createExplosion(missile.x, missile.y);
+        breakJet();
+        missile.alive = false;
+        jet.alive = false;
+        gameState = 'explosion';
+        resetTimer = 120; // 2 seconds before reset
+      } else {
+        // Home in
+        const angle = Math.atan2(dy, dx);
+        missile.vx = (missile.vx || missile.speed) * 0.98 + Math.cos(angle) * missile.homeFactor * dist;
+        missile.vy = (missile.vy || 0) * 0.98 + Math.sin(angle) * missile.homeFactor * dist;
+        // Normalize speed
+        const sp = Math.sqrt(missile.vx * missile.vx + missile.vy * missile.vy);
+        missile.vx = (missile.vx / sp) * missile.speed;
+        missile.vy = (missile.vy / sp) * missile.speed;
+        missile.x += missile.vx;
+        missile.y += missile.vy;
+        // trail
+        missile.trail.push({ x: missile.x, y: missile.y, life: 1.0 });
+        if (missile.trail.length > 40) missile.trail.shift();
+      }
+    } 
+    else if (gameState === 'explosion' || gameState === 'falling') {
+      // Explosion particles update
+      for (let p of explosionParticles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.1; // gravity
+        p.life -= p.decay;
+      }
+      explosionParticles = explosionParticles.filter(p => p.life > 0);
+      // Wreckage
+      for (let w of wreckageParts) {
+        w.x += w.vx;
+        w.y += w.vy;
+        w.vy += 0.15;
+        w.rotation += w.rotSpeed;
+        w.life -= w.decay;
+      }
+      wreckageParts = wreckageParts.filter(w => w.life > 0);
+      // Ground smoke if wreckage hits ground
+      const groundY = H - 45;
+      wreckageParts.forEach(w => {
+        if (w.y >= groundY && w.life > 0) {
+          w.y = groundY;
+          w.vx *= 0.3;
+          w.vy = 0;
+          smokeOnGround.push({ x: w.x, y: groundY, life: 1.0, size: 5 + Math.random() * 10 });
         }
+      });
+      // Smoke update
+      for (let s of smokeOnGround) {
+        s.y -= 0.2;
+        s.life -= 0.01;
+        s.size += 0.15;
+      }
+      smokeOnGround = smokeOnGround.filter(s => s.life > 0);
+      
+      // Reset after some time
+      resetTimer--;
+      if (resetTimer <= 0) {
+        // Reset everything
+        initJet();
+        initMissile();
+        resetExplosion();
+        gameState = 'flying';
+      }
+    }
 
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = W / rect.width;
-            const mouseX = (e.clientX - rect.left) * scaleX;
-            gunX = mouseX;
-            bullets.push({ x: gunX, y: H-40, speed: 8 });
-        });
+    // Trail updates
+    if (missile && missile.trail) {
+      missile.trail.forEach(t => t.life -= 0.02);
+      missile.trail = missile.trail.filter(t => t.life > 0);
+    }
+  }
 
-        function update() {
-            // Move enemies
-            enemies.forEach(e => e.y += e.speed);
-            // Remove off-screen enemies
-            enemies = enemies.filter(e => e.y < H+20);
-            // Move bullets
-            bullets.forEach(b => b.y -= b.speed);
-            bullets = bullets.filter(b => b.y > -20);
-            // Collision detection
-            for (let b of bullets) {
-                for (let e of enemies) {
-                    let dist = Math.hypot(b.x - e.x, b.y - e.y);
-                    if (dist < 20) {
-                        e.toRemove = true;
-                        b.toRemove = true;
-                        score++;
-                    }
-                }
-            }
-            enemies = enemies.filter(e => !e.toRemove);
-            bullets = bullets.filter(b => !b.toRemove);
-            scoreSpan.textContent = score;
-        }
+  // Render
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    drawGround();
 
-        function draw() {
-            ctx.clearRect(0, 0, W, H);
-            // Ground
-            ctx.fillStyle = '#1a3b1a';
-            ctx.fillRect(0, H-20, W, 20);
-            // Gun
-            ctx.fillStyle = '#888';
-            ctx.fillRect(gunX-10, H-45, 20, 30);
-            ctx.fillStyle = '#aaa';
-            ctx.fillRect(gunX-5, H-70, 10, 30);
-            // Enemies
-            ctx.fillStyle = 'red';
-            enemies.forEach(e => {
-                ctx.beginPath();
-                ctx.arc(e.x, e.y, 10, 0, 2*Math.PI);
-                ctx.fill();
-                // trail
-                ctx.strokeStyle = 'rgba(255,0,0,0.4)';
-                ctx.beginPath();
-                ctx.moveTo(e.x, e.y);
-                ctx.lineTo(e.x, e.y-20);
-                ctx.stroke();
-            });
-            // Bullets
-            ctx.fillStyle = 'cyan';
-            bullets.forEach(b => {
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 5, 0, 2*Math.PI);
-                ctx.fill();
-            });
-        }
+    // Draw missile trail
+    if (missile && missile.alive && missile.trail) {
+      for (let i = 0; i < missile.trail.length; i++) {
+        const t = missile.trail[i];
+        ctx.fillStyle = `rgba(255,100,0,${t.life * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, 2 + t.life * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
-        function loop() {
-            update();
-            draw();
-            requestAnimationFrame(loop);
-        }
+    // Draw jet if alive
+    if (jet.alive) {
+      drawJet(jet.x, jet.y, 0);
+    }
 
-        setInterval(spawnEnemy, 1500);
-        loop();
-    </script>
+    // Draw missile if alive
+    if (missile && missile.alive) {
+      drawMissile(missile);
+    }
+
+    // Explosion particles
+    for (let p of explosionParticles) {
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.life;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Wreckage
+    for (let w of wreckageParts) {
+      ctx.save();
+      ctx.translate(w.x, w.y);
+      ctx.rotate(w.rotation);
+      ctx.globalAlpha = w.life;
+      if (w.fire) {
+        ctx.fillStyle = '#ff4400';
+      } else {
+        ctx.fillStyle = '#444';
+      }
+      if (w.shape === 0) {
+        ctx.fillRect(-w.size/2, -w.size/3, w.size, w.size*0.6);
+      } else if (w.shape === 1) {
+        ctx.beginPath();
+        ctx.moveTo(0, -w.size/2);
+        ctx.lineTo(w.size/2, w.size/2);
+        ctx.lineTo(-w.size/2, w.size/2);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, w.size/2, w.size/3, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
+    // Smoke on ground
+    for (let s of smokeOnGround) {
+      ctx.fillStyle = `rgba(80,80,80,${s.life * 0.5})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  // Animation loop
+  function animate() {
+    update();
+    draw();
+    requestAnimationFrame(animate);
+  }
+
+  // Start
+  initJet();
+  initMissile();
+  resetExplosion();
+  gameState = 'flying';
+  animate();
+</script>
 </body>
 </html>
