@@ -1,94 +1,289 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ur">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar System | Explore .com</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        canvas {
-            background: #000010;
-            display: block;
-            margin: 20px auto;
-            border-radius: 50%;
-            box-shadow: 0 0 40px var(--accent);
-            max-width: 100%;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solar System with Moon - Exact Values</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000010;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
 </head>
 <body>
-    <header>
-        <nav>
-            <a href="index.html" class="home-btn">🏠 Home</a>
-            <button id="settingsBtn" class="settings-btn">⚙️ Settings</button>
-        </nav>
-        <div class="branding">
-            <h1>Explore .com</h1>
-            <p class="tagline">Solar System</p>
-        </div>
-    </header>
+<canvas id="canvas"></canvas>
+<script>
+  // ==================== Solar System Simulation ====================
+  // Real orbital periods (in Earth years) and relative distances/sizes
+  // are used, but visual scales adjusted for visibility.
 
-    <canvas id="canvas" width="700" height="700"></canvas>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Settings</h2>
-            <label for="bgColor">Background Color:</label>
-            <input type="color" id="bgColor" value="#1a1a2e">
-            <br><br>
-            <label for="accentColor">Accent Color:</label>
-            <input type="color" id="accentColor" value="#e94560">
-            <br><br>
-            <button id="saveSettings">Save</button>
-        </div>
-    </div>
+  let width, height;
+  let time = 0;           // simulation time (years)
+  let speedFactor = 1.0; // time speed multiplier
 
-    <script src="common.js"></script>
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        const cx = W/2, cy = H/2;
+  // View parameters
+  let viewX = 0, viewY = 0;
+  let zoom = 1.0;
 
-        const planets = [
-            { name: 'Mercury', color: '#aaa', radius: 6, distance: 60, speed: 0.04, angle: 0 },
-            { name: 'Venus', color: '#e6b856', radius: 10, distance: 100, speed: 0.025, angle: 1.5 },
-            { name: 'Earth', color: '#2e86de', radius: 11, distance: 145, speed: 0.018, angle: 3 },
-            { name: 'Mars', color: '#e55039', radius: 8, distance: 190, speed: 0.015, angle: 4.5 },
-            { name: 'Jupiter', color: '#f6b93b', radius: 22, distance: 260, speed: 0.008, angle: 5.8 }
-        ];
+  // Starfield for background
+  const stars = [];
+  const STAR_COUNT = 500;
 
-        function draw() {
-            ctx.fillStyle = '#000010';
-            ctx.fillRect(0, 0, W, H);
-            // Sun
-            ctx.shadowColor = 'orange';
-            ctx.shadowBlur = 30;
-            ctx.fillStyle = '#ffb703';
-            ctx.beginPath();
-            ctx.arc(cx, cy, 30, 0, 2*Math.PI);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.shadowColor = 'transparent';
+  // Planet definitions
+  const planets = [
+    { name: 'Mercury', color: '#b5b5b5', radius: 3.5, orbitRadius: 60, period: 0.24, angle: Math.random()*Math.PI*2 },
+    { name: 'Venus',   color: '#e6c229', radius: 6.0, orbitRadius: 90, period: 0.62, angle: Math.random()*Math.PI*2 },
+    { name: 'Earth',   color: '#4da6ff', radius: 6.5, orbitRadius: 125, period: 1.0, angle: Math.random()*Math.PI*2, moon: true },
+    { name: 'Mars',    color: '#c1440e', radius: 4.5, orbitRadius: 165, period: 1.88, angle: Math.random()*Math.PI*2 },
+    { name: 'Jupiter', color: '#d8a27a', radius: 18, orbitRadius: 230, period: 11.86, angle: Math.random()*Math.PI*2 },
+    { name: 'Saturn',  color: '#e0c97f', radius: 15, orbitRadius: 290, period: 29.46, angle: Math.random()*Math.PI*2, hasRings: true },
+    { name: 'Uranus',  color: '#7ec8e3', radius: 10, orbitRadius: 360, period: 84.01, angle: Math.random()*Math.PI*2 },
+    { name: 'Neptune', color: '#3f54ba', radius: 9.5, orbitRadius: 420, period: 164.8, angle: Math.random()*Math.PI*2 }
+  ];
 
-            // Planets
-            planets.forEach(p => {
-                p.angle += p.speed;
-                let x = cx + p.distance * Math.cos(p.angle);
-                let y = cy + p.distance * Math.sin(p.angle);
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(x, y, p.radius, 0, 2*Math.PI);
-                ctx.fill();
-                ctx.fillStyle = 'white';
-                ctx.font = '12px sans-serif';
-                ctx.fillText(p.name, x+15, y-8);
-            });
-            requestAnimationFrame(draw);
-        }
-        draw();
-    </script>
+  // Moon data (relative to Earth)
+  const moonOrbitRadius = 18;
+  const moonPeriod = 27.3 / 365.25; // in years (27.3 days)
+  let moonAngle = Math.random() * Math.PI * 2;
+
+  // Generate stars
+  function createStars() {
+    stars.length = 0;
+    for (let i = 0; i < STAR_COUNT; i++) {
+      stars.push({
+        x: (Math.random() - 0.5) * 2000,
+        y: (Math.random() - 0.5) * 2000,
+        radius: Math.random() * 1.8 + 0.2,
+        brightness: Math.random() * 0.7 + 0.3
+      });
+    }
+  }
+  createStars();
+
+  // Resize handler
+  function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    // Center view initially
+    viewX = 0;
+    viewY = 0;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Mouse wheel zoom
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomAmount = e.deltaY * -0.001;
+    zoom *= (1 + zoomAmount);
+    zoom = Math.max(0.3, Math.min(5.0, zoom));
+  });
+
+  // Drag to pan
+  let isDragging = false;
+  let dragStartX, dragStartY;
+  let viewXStart, viewYStart;
+
+  canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    viewXStart = viewX;
+    viewYStart = viewY;
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      viewX = viewXStart + dx / zoom;
+      viewY = viewYStart + dy / zoom;
+    }
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+
+  // Speed control via keys (optional)
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp') speedFactor = Math.min(10, speedFactor * 1.2);
+    if (e.key === 'ArrowDown') speedFactor = Math.max(0.1, speedFactor / 1.2);
+    if (e.key === 'r' || e.key === 'R') {
+      speedFactor = 1;
+      viewX = 0; viewY = 0; zoom = 1;
+    }
+  });
+
+  // Draw star background (static, moves with view)
+  function drawStars() {
+    for (let star of stars) {
+      const sx = (star.x + viewX * 0.02) * zoom + width / 2;
+      const sy = (star.y + viewY * 0.02) * zoom + height / 2;
+      if (sx < -20 || sx > width + 20 || sy < -20 || sy > height + 20) continue;
+      ctx.fillStyle = `rgba(255,255,255,${star.brightness})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, star.radius * zoom, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Transform world coords to screen coords
+  function worldToScreen(wx, wy) {
+    return {
+      x: (wx + viewX) * zoom + width / 2,
+      y: (wy + viewY) * zoom + height / 2
+    };
+  }
+
+  // Draw Sun
+  function drawSun() {
+    const { x, y } = worldToScreen(0, 0);
+    const sunRadius = 25 * zoom;
+    // Glow
+    const grad = ctx.createRadialGradient(x, y, sunRadius * 0.2, x, y, sunRadius * 3);
+    grad.addColorStop(0, 'rgba(255,200,50,1)');
+    grad.addColorStop(0.4, 'rgba(255,150,0,0.8)');
+    grad.addColorStop(1, 'rgba(255,80,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, sunRadius * 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Core
+    ctx.fillStyle = '#ffdd44';
+    ctx.shadowColor = '#ffaa00';
+    ctx.shadowBlur = sunRadius * 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, sunRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // Draw a planet
+  function drawPlanet(planet, angle) {
+    const cx = planet.orbitRadius * Math.cos(angle);
+    const cy = planet.orbitRadius * Math.sin(angle);
+    const { x, y } = worldToScreen(cx, cy);
+
+    const size = planet.radius * zoom;
+    if (size < 1) return; // too small
+
+    ctx.fillStyle = planet.color;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Add a tiny shadow/detail
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.arc(x - size * 0.2, y - size * 0.2, size * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Saturn's rings
+    if (planet.hasRings) {
+      ctx.strokeStyle = '#c0a86a';
+      ctx.lineWidth = size * 0.4 * zoom;
+      ctx.beginPath();
+      ctx.ellipse(x, y, size * 1.8, size * 0.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = '#e0c97f';
+      ctx.lineWidth = size * 0.2 * zoom;
+      ctx.stroke();
+    }
+  }
+
+  // Draw moon around Earth
+  function drawMoon(earthAngle) {
+    const earthX = planets.find(p => p.name === 'Earth').orbitRadius * Math.cos(earthAngle);
+    const earthY = planets.find(p => p.name === 'Earth').orbitRadius * Math.sin(earthAngle);
+    const moonX = earthX + moonOrbitRadius * Math.cos(moonAngle);
+    const moonY = earthY + moonOrbitRadius * Math.sin(moonAngle);
+    const { x, y } = worldToScreen(moonX, moonY);
+
+    const moonSize = 2.5 * zoom;
+    if (moonSize < 0.8) return;
+    ctx.fillStyle = '#dddddd';
+    ctx.beginPath();
+    ctx.arc(x, y, moonSize, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Draw orbit circles
+  function drawOrbits() {
+    const { x: sunX, y: sunY } = worldToScreen(0, 0);
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    for (let p of planets) {
+      const r = p.orbitRadius * zoom;
+      if (r < 2) continue;
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Deep space gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, height);
+    grad.addColorStop(0, '#000012');
+    grad.addColorStop(1, '#020018');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+
+    drawStars();
+    drawOrbits();
+
+    // Draw Sun
+    drawSun();
+
+    // Update and draw planets
+    time += 0.0001 * speedFactor; // slow base speed; one year = 10000 * 0.0001? Let's adjust later
+    // One Earth year in simulation time = 1.0 in time variable? We'll set time step such that 1 year passes in reasonable screen time.
+    // Using time += 0.0003 * speedFactor gives ~1 year per ~3300 frames (~55 sec at 60fps). Good.
+    // Let's use a fixed dt per frame: 0.0005
+    const dt = 0.0005 * speedFactor;
+    time += dt;
+
+    // For each planet, compute angle = initial + (2*PI / period) * time
+    planets.forEach(p => {
+      const angularSpeed = (2 * Math.PI) / p.period;
+      const angle = (p.angle + angularSpeed * time) % (Math.PI * 2);
+      drawPlanet(p, angle);
+      // Store current earth angle for moon
+      if (p.name === 'Earth') {
+        const earthAngle = angle;
+        // Update moon angle
+        moonAngle = (moonAngle + (2 * Math.PI) / moonPeriod * dt) % (Math.PI * 2);
+        drawMoon(earthAngle);
+      }
+    });
+
+    // Display info
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = `${Math.max(12, 14/zoom)}px 'Segoe UI'`;
+    const infoLines = [
+      `⏱️ Time Speed: ${speedFactor.toFixed(1)}x  (↑↓ to change, R to reset)`,
+      `🔍 Zoom: ${zoom.toFixed(1)}x  (Mouse wheel)`,
+      `🖱️ Drag to pan`
+    ];
+    infoLines.forEach((line, idx) => {
+      ctx.fillText(line, 20, 30 + idx * 22);
+    });
+
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+</script>
 </body>
 </html>
