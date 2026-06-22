@@ -2,182 +2,528 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Missile Projectile | Explore .com</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Projectile Motion Simulation</title>
     <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: linear-gradient(145deg, #1e2a3a 0%, #0f1724 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .sim-card {
+            background: rgba(22, 34, 48, 0.85);
+            backdrop-filter: blur(4px);
+            border-radius: 2.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.15);
+        }
         canvas {
-            background: #0a0a1a;
             display: block;
-            margin: 20px auto;
-            border-radius: 20px;
-            box-shadow: 0 0 30px var(--accent);
-            max-width: 100%;
+            margin: 0 auto;
+            border-radius: 1.5rem;
+            background: radial-gradient(circle at 30% 20%, #2c3f2f, #1a2a1f);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            cursor: crosshair;
         }
-        .sim-controls {
-            text-align: center;
-            margin: 20px;
+        .controls {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1.2rem;
+            background: #0f1a1fcc;
+            padding: 1rem 1.5rem;
+            border-radius: 3rem;
+            backdrop-filter: blur(8px);
         }
-        .sim-controls button {
-            background: var(--accent);
-            border: none;
-            padding: 12px 30px;
-            border-radius: 20px;
-            font-size: 18px;
-            color: white;
-            margin: 0 10px;
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            background: #00000055;
+            padding: 8px 18px;
+            border-radius: 2rem;
+            min-width: 130px;
+        }
+        .slider-group label {
+            font-weight: 600;
+            color: #ffd966;
+            text-shadow: 0 1px 2px black;
+            letter-spacing: 0.5px;
+            font-size: 0.9rem;
+        }
+        input {
             cursor: pointer;
+            width: 160px;
+            accent-color: #f39c12;
+        }
+        .value-display {
+            background: #000000aa;
+            color: #e0e0e0;
+            padding: 2px 10px;
+            border-radius: 40px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+        button {
+            background: #e67e22;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 3rem;
+            font-weight: bold;
+            font-size: 1rem;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 4px 0 #b45f1b;
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #b45f1b;
+        }
+        .stats {
+            display: flex;
+            gap: 1.8rem;
+            justify-content: center;
+            margin-top: 1.2rem;
+            flex-wrap: wrap;
+            font-weight: bold;
+            background: #00000066;
+            padding: 10px 20px;
+            border-radius: 40px;
+            color: #cfead9;
+        }
+        .stat-card {
+            background: #00000077;
+            padding: 4px 14px;
+            border-radius: 32px;
+            font-family: 'Courier New', monospace;
+        }
+        h3 {
+            margin: 0 0 10px 0;
+            text-align: center;
+            color: #ffe0a3;
+            font-weight: 500;
+        }
+        @media (max-width: 700px) {
+            .controls { gap: 0.8rem; }
+            .slider-group { min-width: 100px; }
+            input { width: 120px; }
+            .stat-card { font-size: 0.8rem; }
         }
     </style>
 </head>
 <body>
-    <header>
-        <nav>
-            <a href="index.html" class="home-btn">🏠 Home</a>
-            <button id="settingsBtn" class="settings-btn">⚙️ Settings</button>
-        </nav>
-        <div class="branding">
-            <h1>Explore .com</h1>
-            <p class="tagline">Missile Projectile</p>
+<div>
+    <div class="sim-card">
+        <h3>🏹 PROJECTILE MOTION SIMULATION 🎯</h3>
+        <canvas id="projectileCanvas" width="900" height="500" style="width:100%; height:auto; max-width:900px; aspect-ratio:900/500"></canvas>
+        
+        <div class="controls">
+            <div class="slider-group">
+                <label>📐 Angle (θ)</label>
+                <input type="range" id="angleSlider" min="0" max="90" step="1" value="45">
+                <span id="angleVal" class="value-display">45°</span>
+            </div>
+            <div class="slider-group">
+                <label>⚡ Velocity (v₀)</label>
+                <input type="range" id="velSlider" min="5" max="45" step="1" value="28">
+                <span id="velVal" class="value-display">28 m/s</span>
+            </div>
+            <div class="slider-group">
+                <label>🌍 Gravity (g)</label>
+                <input type="range" id="gravSlider" min="3" max="20" step="0.5" value="9.8">
+                <span id="gravVal" class="value-display">9.8 m/s²</span>
+            </div>
+            <button id="launchBtn">🚀 LAUNCH</button>
+            <button id="resetBtn">⟳ RESET</button>
         </div>
-    </header>
 
-    <canvas id="canvas" width="800" height="500"></canvas>
-    <div class="sim-controls">
-        <button id="fireBtn">🔥 Fire Missile</button>
-        <button id="resetBtn">🔄 Reset</button>
-    </div>
-
-    <!-- Settings Modal (same structure) -->
-    <div id="settingsModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Settings</h2>
-            <label for="bgColor">Background Color:</label>
-            <input type="color" id="bgColor" value="#1a1a2e">
-            <br><br>
-            <label for="accentColor">Accent Color:</label>
-            <input type="color" id="accentColor" value="#e94560">
-            <br><br>
-            <button id="saveSettings">Save</button>
+        <div class="stats" id="statsPanel">
+            <div class="stat-card">⏱️ Time of flight: <span id="tof">0.00</span> s</div>
+            <div class="stat-card">📏 Range: <span id="range">0.00</span> m</div>
+            <div class="stat-card">📐 Max height: <span id="maxH">0.00</span> m</div>
         </div>
     </div>
+</div>
 
-    <script src="common.js"></script>
-    <script>
-        const canvas = document.getElementById('canvas');
+<script>
+    (function(){
+        const canvas = document.getElementById('projectileCanvas');
         const ctx = canvas.getContext('2d');
-        const fireBtn = document.getElementById('fireBtn');
+        
+        // Dimensions
+        let width = canvas.clientWidth;
+        let height = canvas.clientHeight;
+        
+        // World coordinates: x from 0 to Xmax (meters), y from 0 to Ymax (meters)
+        let xMaxWorld = 120;    // meters (range)
+        let yMaxWorld = 40;     // meters (height)
+        
+        // Offsets for drawing
+        let originX, originY;
+        let scaleX, scaleY;
+        
+        // Simulation parameters
+        let angleDeg = 45;
+        let v0 = 28;      // m/s
+        let g = 9.8;      // m/s²
+        
+        // Trajectory points (array of {x,y} in meters)
+        let trajectory = [];
+        
+        // Animation (launch simulation)
+        let animFrame = null;
+        let animTime = 0;        // current time in seconds
+        let totalTime = 0;
+        let isAnimating = false;
+        let projectileX = 0, projectileY = 0;
+        
+        // DOM elements
+        const angleSlider = document.getElementById('angleSlider');
+        const velSlider = document.getElementById('velSlider');
+        const gravSlider = document.getElementById('gravSlider');
+        const angleVal = document.getElementById('angleVal');
+        const velVal = document.getElementById('velVal');
+        const gravVal = document.getElementById('gravVal');
+        const launchBtn = document.getElementById('launchBtn');
         const resetBtn = document.getElementById('resetBtn');
-
-        const W = canvas.width, H = canvas.height;
-        const groundY = H - 30;
-
-        let projectile = null;
-        let target = { x: 650, y: groundY - 40, radius: 25 };
-
-        function drawScene() {
-            ctx.clearRect(0, 0, W, H);
-            // Sky gradient
-            const grad = ctx.createLinearGradient(0, 0, 0, H);
-            grad.addColorStop(0, '#0b0b2b');
-            grad.addColorStop(1, '#3a0d2e');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, W, H);
-            // Ground
-            ctx.fillStyle = '#1a3b1a';
-            ctx.fillRect(0, groundY, W, 30);
-            // Target
-            ctx.fillStyle = 'red';
+        const spanTOF = document.getElementById('tof');
+        const spanRange = document.getElementById('range');
+        const spanMaxH = document.getElementById('maxH');
+        
+        function updateSlidersReadout() {
+            angleVal.innerText = angleSlider.value + "°";
+            velVal.innerText = velSlider.value + " m/s";
+            gravVal.innerText = parseFloat(gravSlider.value).toFixed(1) + " m/s²";
+        }
+        
+        function getParamsFromUI() {
+            angleDeg = parseFloat(angleSlider.value);
+            v0 = parseFloat(velSlider.value);
+            g = parseFloat(gravSlider.value);
+        }
+        
+        // Compute trajectory and stats
+        function computeTrajectory() {
+            const rad = angleDeg * Math.PI / 180;
+            const vx = v0 * Math.cos(rad);
+            const vy = v0 * Math.sin(rad);
+            
+            // Time of flight: t = 2*vy / g
+            const T = (vy * 2) / g;
+            const rangeVal = vx * T;
+            const maxHeight = (vy * vy) / (2 * g);
+            
+            // Update stats panel
+            spanTOF.innerText = T.toFixed(2);
+            spanRange.innerText = rangeVal.toFixed(2);
+            spanMaxH.innerText = maxHeight.toFixed(2);
+            
+            // Generate trajectory points (step 0.05 sec)
+            const points = [];
+            const step = 0.05;
+            let t = 0;
+            while (t <= T + 0.01) {
+                const x = vx * t;
+                const y = vy * t - 0.5 * g * t * t;
+                if (y >= 0) {
+                    points.push({ x: x, y: y });
+                } else if (points.length > 0 && points[points.length-1].y > 0) {
+                    // add ground intersection approx
+                    points.push({ x: x, y: 0 });
+                }
+                t += step;
+            }
+            // Ensure final point exactly on ground
+            if (points.length > 0 && points[points.length-1].y !== 0) {
+                points.push({ x: rangeVal, y: 0 });
+            }
+            
+            // Adjust world limits to see full trajectory
+            let maxRangeNeeded = Math.max(rangeVal + 2, 50);
+            let maxHeightNeeded = Math.max(maxHeight + 3, 20);
+            xMaxWorld = Math.min(220, Math.max(60, maxRangeNeeded + 5));
+            yMaxWorld = Math.min(80, Math.max(25, maxHeightNeeded + 5));
+            
+            return { points, totalTime: T, rangeVal, maxHeight };
+        }
+        
+        function updateCanvasLayout() {
+            width = canvas.clientWidth;
+            height = canvas.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            
+            // margins
+            const marginLeft = 70;
+            const marginRight = 35;
+            const marginTop = 30;
+            const marginBottom = 45;
+            
+            const drawWidth = width - marginLeft - marginRight;
+            const drawHeight = height - marginTop - marginBottom;
+            
+            scaleX = drawWidth / xMaxWorld;
+            scaleY = drawHeight / yMaxWorld;
+            
+            originX = marginLeft;
+            originY = height - marginBottom;
+        }
+        
+        function worldToCanvas(x, y) {
+            const cx = originX + x * scaleX;
+            const cy = originY - y * scaleY;
+            return { x: cx, y: cy };
+        }
+        
+        function drawGridAndAxes() {
+            ctx.save();
+            ctx.strokeStyle = "#ffffff60";
+            ctx.lineWidth = 1;
+            ctx.fillStyle = "#eef4ff";
+            ctx.font = "12px 'Segoe UI'";
+            ctx.shadowBlur = 0;
+            
+            // Draw ground line
             ctx.beginPath();
-            ctx.arc(target.x, target.y, target.radius, 0, Math.PI*2);
-            ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.font = '14px sans-serif';
-            ctx.fillText('Target', target.x-25, target.y-30);
-            // Launcher
-            ctx.fillStyle = 'gray';
-            ctx.fillRect(20, groundY-40, 60, 40);
-            ctx.fillStyle = 'orange';
-            ctx.fillRect(40, groundY-70, 20, 40);
-            // Projectile
-            if (projectile) {
-                ctx.fillStyle = 'yellow';
+            let groundStart = worldToCanvas(0,0);
+            let groundEnd = worldToCanvas(xMaxWorld,0);
+            ctx.moveTo(groundStart.x, groundStart.y);
+            ctx.lineTo(groundEnd.x, groundEnd.y);
+            ctx.strokeStyle = "#ffbb77";
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            
+            // grid vertical (every 10m)
+            ctx.lineWidth = 0.8;
+            ctx.strokeStyle = "#aaccff40";
+            for (let x = 0; x <= xMaxWorld; x += 10) {
+                let p1 = worldToCanvas(x, 0);
+                let p2 = worldToCanvas(x, yMaxWorld);
                 ctx.beginPath();
-                ctx.arc(projectile.x, projectile.y, 8, 0, 2*Math.PI);
-                ctx.fill();
-                // Trail
-                ctx.strokeStyle = 'rgba(255,255,0,0.5)';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                for (let t = 0; t < projectile.time; t+=0.2) {
-                    let px = projectile.startX + projectile.vx * t;
-                    let py = projectile.startY + projectile.vy * t + 0.5*0.2*t*t; // g≈0.2
-                    if (py > groundY) break;
-                    ctx.lineTo(px, py);
-                }
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
                 ctx.stroke();
-            }
-        }
-
-        function updateProjectile() {
-            if (!projectile) return;
-            projectile.time += 0.5;
-            projectile.x = projectile.startX + projectile.vx * projectile.time;
-            projectile.y = projectile.startY + projectile.vy * projectile.time + 0.5 * 0.15 * projectile.time * projectile.time;
-            if (projectile.y > groundY || projectile.x > W) {
-                // hit or miss
-                let dist = Math.hypot(projectile.x - target.x, projectile.y - target.y);
-                if (dist < target.radius + 8) {
-                    alert('🎯 Target Hit!');
-                }
-                projectile = null;
-            }
-            // Check target collision during flight
-            if (projectile) {
-                let dist = Math.hypot(projectile.x - target.x, projectile.y - target.y);
-                if (dist < target.radius + 8) {
-                    alert('🎯 Target Hit!');
-                    projectile = null;
+                // label
+                if (x > 0 || x === 0) {
+                    ctx.fillStyle = "#ddd9c4";
+                    ctx.fillText(x + "m", p1.x-8, p1.y+15);
                 }
             }
+            // grid horizontal (every 5m height)
+            for (let y = 0; y <= yMaxWorld; y += 5) {
+                let p1 = worldToCanvas(0, y);
+                let p2 = worldToCanvas(xMaxWorld, y);
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+                ctx.fillStyle = "#c9d9e8";
+                ctx.fillText(y+"m", p1.x-28, p1.y+4);
+            }
+            
+            // axes labels
+            ctx.fillStyle = "#ffecb3";
+            ctx.font = "bold 13px monospace";
+            let originPt = worldToCanvas(0,0);
+            ctx.fillText("Origin", originPt.x-25, originPt.y-6);
+            let arrowX = worldToCanvas(xMaxWorld-2,0);
+            ctx.fillText("X →", arrowX.x+5, arrowX.y-5);
+            let arrowY = worldToCanvas(0, yMaxWorld-2);
+            ctx.fillText("↑ Y", arrowY.x-20, arrowY.y-8);
         }
-
-        function fire() {
-            if (projectile) return; // already in air
-            // launch from launcher top: (60, groundY-70)
-            let launchX = 60, launchY = groundY - 70;
-            // calculate velocity to reach near target
-            let dx = target.x - launchX;
-            let dy = target.y - launchY;
-            // simple parabolic: choose vx, vy such that it arcs
-            let g = 0.15;
-            let time = Math.sqrt(2 * Math.abs(dy) / g) * 1.8; // rough
-            let vx = dx / time;
-            let vy = (dy - 0.5 * g * time * time) / time;
-            projectile = {
-                startX: launchX,
-                startY: launchY,
-                vx: vx,
-                vy: vy,
-                time: 0,
-                x: launchX,
-                y: launchY
-            };
+        
+        function drawTrajectory(points) {
+            if (!points || points.length < 2) return;
+            ctx.beginPath();
+            let first = worldToCanvas(points[0].x, points[0].y);
+            ctx.moveTo(first.x, first.y);
+            for (let i=1; i<points.length; i++) {
+                let pt = worldToCanvas(points[i].x, points[i].y);
+                ctx.lineTo(pt.x, pt.y);
+            }
+            ctx.strokeStyle = "#f5bc70";
+            ctx.lineWidth = 3.5;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            // draw small circles
+            for (let i=0; i<points.length; i+= Math.max(1, Math.floor(points.length/30))) {
+                let pt = worldToCanvas(points[i].x, points[i].y);
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2);
+                ctx.fillStyle = "#ffaa44cc";
+                ctx.fill();
+            }
         }
-
-        fireBtn.addEventListener('click', fire);
-        resetBtn.addEventListener('click', () => {
-            projectile = null;
-            drawScene();
+        
+        function drawProjectileAt(x, y) {
+            let pos = worldToCanvas(x, y);
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 7, 0, 2*Math.PI);
+            ctx.fillStyle = "#ff6600";
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 3, 0, 2*Math.PI);
+            ctx.fillStyle = "#ffffaa";
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            // fire trail small effect
+            ctx.beginPath();
+            ctx.arc(pos.x-3, pos.y-1, 2.5, 0, 2*Math.PI);
+            ctx.fillStyle = "#ff9933";
+            ctx.fill();
+        }
+        
+        function redrawStatic() {
+            updateCanvasLayout();
+            ctx.clearRect(0, 0, width, height);
+            drawGridAndAxes();
+            if (trajectory.length) {
+                drawTrajectory(trajectory);
+            }
+        }
+        
+        function refreshSimulation(keepAnimation = false) {
+            if (!keepAnimation && isAnimating) {
+                cancelAnimationFrame(animFrame);
+                isAnimating = false;
+            }
+            getParamsFromUI();
+            const { points, totalTime: T, rangeVal, maxHeight } = computeTrajectory();
+            trajectory = points;
+            totalTime = T;
+            
+            redrawStatic();
+            
+            // if not animating, show static projectile at origin or final? show start position
+            if (!isAnimating) {
+                projectileX = 0;
+                projectileY = 0;
+                drawProjectileAt(0, 0);
+            } else {
+                // continue drawing current anim projectile
+                drawProjectileAt(projectileX, projectileY);
+            }
+        }
+        
+        function startAnimation() {
+            if (isAnimating) {
+                cancelAnimationFrame(animFrame);
+                isAnimating = false;
+            }
+            // recompute latest data
+            getParamsFromUI();
+            const { points, totalTime: T, rangeVal, maxHeight } = computeTrajectory();
+            trajectory = points;
+            totalTime = T;
+            
+            redrawStatic();
+            // animation from 0 to totalTime
+            animTime = 0;
+            isAnimating = true;
+            
+            function animateStep() {
+                if (!isAnimating) return;
+                const step = 0.025;   // seconds per frame ~ 40fps
+                if (animTime >= totalTime) {
+                    // final position on ground
+                    projectileX = parseFloat(spanRange.innerText);
+                    projectileY = 0;
+                    redrawStatic();
+                    drawProjectileAt(projectileX, projectileY);
+                    isAnimating = false;
+                    return;
+                }
+                const rad = angleDeg * Math.PI / 180;
+                const vx = v0 * Math.cos(rad);
+                const vy = v0 * Math.sin(rad);
+                const t = animTime;
+                let x = vx * t;
+                let y = vy * t - 0.5 * g * t * t;
+                if (y < 0) y = 0;
+                projectileX = x;
+                projectileY = y;
+                redrawStatic();
+                drawProjectileAt(projectileX, projectileY);
+                
+                animTime += step;
+                if (animTime > totalTime) animTime = totalTime;
+                animFrame = requestAnimationFrame(animateStep);
+            }
+            animFrame = requestAnimationFrame(animateStep);
+        }
+        
+        function resetToStatic() {
+            if (isAnimating) {
+                cancelAnimationFrame(animFrame);
+                isAnimating = false;
+            }
+            getParamsFromUI();
+            const { points } = computeTrajectory();
+            trajectory = points;
+            redrawStatic();
+            drawProjectileAt(0, 0);
+        }
+        
+        // Event listeners
+        function slidersChange() {
+            updateSlidersReadout();
+            if (!isAnimating) {
+                getParamsFromUI();
+                const { points } = computeTrajectory();
+                trajectory = points;
+                redrawStatic();
+                drawProjectileAt(0, 0);
+            } else {
+                // if animating, stop and refresh
+                cancelAnimationFrame(animFrame);
+                isAnimating = false;
+                getParamsFromUI();
+                const { points } = computeTrajectory();
+                trajectory = points;
+                redrawStatic();
+                drawProjectileAt(0, 0);
+            }
+        }
+        
+        angleSlider.addEventListener('input', slidersChange);
+        velSlider.addEventListener('input', slidersChange);
+        gravSlider.addEventListener('input', slidersChange);
+        launchBtn.addEventListener('click', startAnimation);
+        resetBtn.addEventListener('click', resetToStatic);
+        
+        window.addEventListener('resize', () => {
+            if (!isAnimating) {
+                redrawStatic();
+                drawProjectileAt(projectileX || 0, projectileY || 0);
+            } else {
+                redrawStatic();
+                drawProjectileAt(projectileX, projectileY);
+            }
         });
-
-        function gameLoop() {
-            updateProjectile();
-            drawScene();
-            requestAnimationFrame(gameLoop);
-        }
-        gameLoop();
-    </script>
+        
+        // initial setup
+        updateSlidersReadout();
+        getParamsFromUI();
+        computeTrajectory();
+        refreshSimulation(false);
+        drawProjectileAt(0,0);
+    })();
+</script>
 </body>
 </html>
