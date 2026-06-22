@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System | Explore .com</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        canvas {
+            background: #000010;
+            display: block;
+            margin: 20px auto;
+            border-radius: 50%;
+            box-shadow: 0 0 40px var(--accent);
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="index.html" class="home-btn">🏠 Home</a>
+            <button id="settingsBtn" class="settings-btn">⚙️ Settings</button>
+        </nav>
+        <div class="branding">
+            <h1>Explore .com</h1>
+            <p class="tagline">Solar System</p>
+        </div>
+    </header>
+
+    <canvas id="canvas" width="700" height="700"></canvas>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Settings</h2>
+            <label for="bgColor">Background Color:</label>
+            <input type="color" id="bgColor" value="#1a1a2e">
+            <br><br>
+            <label for="accentColor">Accent Color:</label>
+            <input type="color" id="accentColor" value="#e94560">
+            <br><br>
+            <button id="saveSettings">Save</button>
+        </div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const cx = W/2, cy = H/2;
+
+        const planets = [
+            { name: 'Mercury', color: '#aaa', radius: 6, distance: 60, speed: 0.04, angle: 0 },
+            { name: 'Venus', color: '#e6b856', radius: 10, distance: 100, speed: 0.025, angle: 1.5 },
+            { name: 'Earth', color: '#2e86de', radius: 11, distance: 145, speed: 0.018, angle: 3 },
+            { name: 'Mars', color: '#e55039', radius: 8, distance: 190, speed: 0.015, angle: 4.5 },
+            { name: 'Jupiter', color: '#f6b93b', radius: 22, distance: 260, speed: 0.008, angle: 5.8 }
+        ];
+
+        function draw() {
+            ctx.fillStyle = '#000010';
+            ctx.fillRect(0, 0, W, H);
+            // Sun
+            ctx.shadowColor = 'orange';
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = '#ffb703';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 30, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = 'transparent';
+
+            // Planets
+            planets.forEach(p => {
+                p.angle += p.speed;
+                let x = cx + p.distance * Math.cos(p.angle);
+                let y = cy + p.distance * Math.sin(p.angle);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(x, y, p.radius, 0, 2*Math.PI);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = '12px sans-serif';
+                ctx.fillText(p.name, x+15, y-8);
+            });
+            requestAnimationFrame(draw);
+        }
+        draw();
+    </script>
+</body>
+</html>

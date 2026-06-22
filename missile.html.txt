@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Missile Projectile | Explore .com</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        canvas {
+            background: #0a0a1a;
+            display: block;
+            margin: 20px auto;
+            border-radius: 20px;
+            box-shadow: 0 0 30px var(--accent);
+            max-width: 100%;
+        }
+        .sim-controls {
+            text-align: center;
+            margin: 20px;
+        }
+        .sim-controls button {
+            background: var(--accent);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 20px;
+            font-size: 18px;
+            color: white;
+            margin: 0 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="index.html" class="home-btn">🏠 Home</a>
+            <button id="settingsBtn" class="settings-btn">⚙️ Settings</button>
+        </nav>
+        <div class="branding">
+            <h1>Explore .com</h1>
+            <p class="tagline">Missile Projectile</p>
+        </div>
+    </header>
+
+    <canvas id="canvas" width="800" height="500"></canvas>
+    <div class="sim-controls">
+        <button id="fireBtn">🔥 Fire Missile</button>
+        <button id="resetBtn">🔄 Reset</button>
+    </div>
+
+    <!-- Settings Modal (same structure) -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Settings</h2>
+            <label for="bgColor">Background Color:</label>
+            <input type="color" id="bgColor" value="#1a1a2e">
+            <br><br>
+            <label for="accentColor">Accent Color:</label>
+            <input type="color" id="accentColor" value="#e94560">
+            <br><br>
+            <button id="saveSettings">Save</button>
+        </div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const fireBtn = document.getElementById('fireBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        const W = canvas.width, H = canvas.height;
+        const groundY = H - 30;
+
+        let projectile = null;
+        let target = { x: 650, y: groundY - 40, radius: 25 };
+
+        function drawScene() {
+            ctx.clearRect(0, 0, W, H);
+            // Sky gradient
+            const grad = ctx.createLinearGradient(0, 0, 0, H);
+            grad.addColorStop(0, '#0b0b2b');
+            grad.addColorStop(1, '#3a0d2e');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            // Ground
+            ctx.fillStyle = '#1a3b1a';
+            ctx.fillRect(0, groundY, W, 30);
+            // Target
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(target.x, target.y, target.radius, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.font = '14px sans-serif';
+            ctx.fillText('Target', target.x-25, target.y-30);
+            // Launcher
+            ctx.fillStyle = 'gray';
+            ctx.fillRect(20, groundY-40, 60, 40);
+            ctx.fillStyle = 'orange';
+            ctx.fillRect(40, groundY-70, 20, 40);
+            // Projectile
+            if (projectile) {
+                ctx.fillStyle = 'yellow';
+                ctx.beginPath();
+                ctx.arc(projectile.x, projectile.y, 8, 0, 2*Math.PI);
+                ctx.fill();
+                // Trail
+                ctx.strokeStyle = 'rgba(255,255,0,0.5)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                for (let t = 0; t < projectile.time; t+=0.2) {
+                    let px = projectile.startX + projectile.vx * t;
+                    let py = projectile.startY + projectile.vy * t + 0.5*0.2*t*t; // g≈0.2
+                    if (py > groundY) break;
+                    ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+            }
+        }
+
+        function updateProjectile() {
+            if (!projectile) return;
+            projectile.time += 0.5;
+            projectile.x = projectile.startX + projectile.vx * projectile.time;
+            projectile.y = projectile.startY + projectile.vy * projectile.time + 0.5 * 0.15 * projectile.time * projectile.time;
+            if (projectile.y > groundY || projectile.x > W) {
+                // hit or miss
+                let dist = Math.hypot(projectile.x - target.x, projectile.y - target.y);
+                if (dist < target.radius + 8) {
+                    alert('🎯 Target Hit!');
+                }
+                projectile = null;
+            }
+            // Check target collision during flight
+            if (projectile) {
+                let dist = Math.hypot(projectile.x - target.x, projectile.y - target.y);
+                if (dist < target.radius + 8) {
+                    alert('🎯 Target Hit!');
+                    projectile = null;
+                }
+            }
+        }
+
+        function fire() {
+            if (projectile) return; // already in air
+            // launch from launcher top: (60, groundY-70)
+            let launchX = 60, launchY = groundY - 70;
+            // calculate velocity to reach near target
+            let dx = target.x - launchX;
+            let dy = target.y - launchY;
+            // simple parabolic: choose vx, vy such that it arcs
+            let g = 0.15;
+            let time = Math.sqrt(2 * Math.abs(dy) / g) * 1.8; // rough
+            let vx = dx / time;
+            let vy = (dy - 0.5 * g * time * time) / time;
+            projectile = {
+                startX: launchX,
+                startY: launchY,
+                vx: vx,
+                vy: vy,
+                time: 0,
+                x: launchX,
+                y: launchY
+            };
+        }
+
+        fireBtn.addEventListener('click', fire);
+        resetBtn.addEventListener('click', () => {
+            projectile = null;
+            drawScene();
+        });
+
+        function gameLoop() {
+            updateProjectile();
+            drawScene();
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+    </script>
+</body>
+</html>
